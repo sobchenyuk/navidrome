@@ -7,6 +7,7 @@ import dataProvider from './dataProvider'
 import authProvider from './authProvider'
 import { Layout, Login, Logout } from './layout'
 import transcoding from './transcoding'
+import tags from './tags'
 import player from './player'
 import user from './user'
 import song from './song'
@@ -95,6 +96,7 @@ const Admin = (props) => {
     >
       {(permissions) => [
         <Resource name="album" {...album} options={{ subMenu: 'albumList' }} />,
+        <Resource name="tags" {...tags} />,
         <Resource name="artist" {...artist} />,
         <Resource name="song" {...song} />,
         <Resource
