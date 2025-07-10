@@ -1,0 +1,7 @@
+const genres = [
+  'Alternative', 'Ambient', 'Audiobook', 'Blues', 'Britpop', 'Classical', 
+  'Country', 'Disco', 'Electronic', 'Experimental', 'Folk', 'Funk', 
+  'Gospel', 'Grunge', 'Hip-Hop', 'Indie', 'Jazz', 'Metal', 'New Wave', 
+  'Pop', 'Post-Punk', 'Progressive', 'Psychedelic', 'Punk', 'R&B', 
+  'Reggae', 'Rock', 'Soul', 'World'
+]

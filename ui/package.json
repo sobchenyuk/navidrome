@@ -20,6 +20,8 @@
     "@material-ui/icons": "^4.11.3",
     "@material-ui/lab": "^4.0.0-alpha.58",
     "@material-ui/styles": "^4.11.5",
+    "@apollo/client": "^3.7.17",
+    "graphql": "^16.8.0",
     "blueimp-md5": "^2.19.0",
     "clsx": "^2.1.1",
     "connected-react-router": "^6.9.3",

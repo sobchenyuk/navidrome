@@ -32,8 +32,3 @@ AGENTS.md
 *.exe
 *.test
 *.wasm
-
-# Front-server (NestJS)
-front-server/node_modules
-front-server/dist
-front-server/.env

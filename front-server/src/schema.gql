@@ -1,0 +1,36 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Mutation {
+  updateTags(input: TagInput!, path: String!): Boolean!
+  uploadCover(coverData: String!, path: String!): Boolean!
+}
+
+type Query {
+  track(path: String!): Track
+  tracks(path: String): [Track!]!
+}
+
+input TagInput {
+  album: String
+  albumArtist: String
+  artist: String
+  genre: String
+  title: String
+  trackNumber: Int
+  year: Int
+}
+
+type Track {
+  album: String
+  albumArtist: String
+  artist: String
+  cover: String
+  genre: String
+  id: String!
+  path: String!
+  title: String
+  trackNumber: Int
+  year: Int
+}

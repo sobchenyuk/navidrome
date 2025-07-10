@@ -1,0 +1,81 @@
+import { Injectable } from '@nestjs/common';
+import { Track } from './track.model';
+import { TagInput } from './tag.input';
+import * as path from 'path';
+import * as fs from 'fs';
+
+@Injectable()
+export class TagsService {
+  private readonly musicPath = '/music'; // Docker volume mount path
+
+  // Mock data for development - will be replaced with real metadata reading
+  private mockTracks: Track[] = [
+    {
+      id: '1',
+      path: 'Library/Audiobook_Rus_200_017.mp3',
+      title: 'Chapter 17',
+      artist: 'John Smith',
+      albumArtist: 'John Smith',
+      album: 'Russian Stories',
+      genre: 'Audiobook',
+      trackNumber: 17,
+      year: 2020,
+    },
+    {
+      id: '2',
+      path: 'Library/Audiobook_Rus_200_018.mp3',
+      title: 'Chapter 18',
+      artist: 'John Smith',
+      albumArtist: 'John Smith',
+      album: 'Russian Stories',
+      genre: 'Audiobook',
+      trackNumber: 18,
+      year: 2020,
+    },
+    // Add more mock data as needed
+  ];
+
+  async findAll(searchPath?: string): Promise<Track[]> {
+    // TODO: Replace with real file system scanning and metadata reading
+    return this.mockTracks;
+  }
+
+  async findOne(filePath: string): Promise<Track | null> {
+    // TODO: Replace with real metadata reading from file
+    const track = this.mockTracks.find(t => t.path === filePath);
+    return track || null;
+  }
+
+  async updateTags(filePath: string, tagInput: TagInput): Promise<boolean> {
+    try {
+      // TODO: Replace with real metadata writing using music-metadata and node-id3
+      console.log(`Updating tags for ${filePath}:`, tagInput);
+      
+      // For now, update mock data
+      const trackIndex = this.mockTracks.findIndex(t => t.path === filePath);
+      if (trackIndex >= 0) {
+        this.mockTracks[trackIndex] = {
+          ...this.mockTracks[trackIndex],
+          ...tagInput,
+        };
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error updating tags:', error);
+      return false;
+    }
+  }
+
+  async uploadCover(filePath: string, coverData: Buffer): Promise<boolean> {
+    try {
+      // TODO: Implement cover upload using node-id3 or flac-metadata
+      console.log(`Uploading cover for ${filePath}`);
+      return true;
+    } catch (error) {
+      console.error('Error uploading cover:', error);
+      return false;
+    }
+  }
+}

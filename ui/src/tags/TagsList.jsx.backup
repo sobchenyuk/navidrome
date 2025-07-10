@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMediaQuery, withWidth } from '@material-ui/core'
-import { ApolloProvider } from '@apollo/client'
 import {
   Filter,
   SearchInput,
@@ -32,25 +31,23 @@ import {
   Select,
   MenuItem,
   FormControl,
-  CircularProgress
+  CircularProgress,
+  Alert
 } from '@material-ui/core'
-import { Alert } from '@material-ui/lab'
 import { ExpandMore, ExpandLess, Search } from '@material-ui/icons'
-import { apolloClient } from './graphql/client'
-import { useTracks } from './useTracks'
 
 const genres = [
   'Alternative', 'Ambient', 'Audiobook', 'Blues', 'Britpop', 'Classical', 
   'Country', 'Disco', 'Electronic', 'Experimental', 'Folk', 'Funk', 
   'Gospel', 'Grunge', 'Hip-Hop', 'Indie', 'Jazz', 'Metal', 'New Wave', 
   'Pop', 'Post-Punk', 'Progressive', 'Psychedelic', 'Punk', 'R&B', 
-  'Reggae', 'Rock', 'Soul', 'Speech', 'World'
+  'Reggae', 'Rock', 'Soul', 'World'
 ]
 
 const currentYear = new Date().getFullYear()
 const years = Array.from({ length: currentYear - 1900 + 1 }, (_, i) => 1900 + i).reverse()
 
-const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateTrack }) => {
+const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, updateTrack }) => {
   const [order, setOrder] = useState('asc')
   const [orderBy, setOrderBy] = useState('title')
   const [page, setPage] = useState(0)
@@ -76,6 +73,7 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
   const handleCellChange = async (trackPath, field, value) => {
     const success = await updateTrack(trackPath, field, value)
     if (!success) {
+      // Could show error notification here
       console.error('Failed to update track')
     }
   }
@@ -132,6 +130,7 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
       )
     }
 
+    // For trackNumber, use smaller width
     const fieldProps = field === 'trackNumber' 
       ? { size: "small", style: { width: '60px' } }
       : { size: "small", fullWidth: true }
@@ -167,6 +166,7 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
     let aValue = a[orderBy] || ''
     let bValue = b[orderBy] || ''
     
+    // Handle numeric sorting for trackNumber and year
     if (orderBy === 'trackNumber' || orderBy === 'year') {
       aValue = parseInt(aValue) || 0
       bValue = parseInt(bValue) || 0
@@ -190,14 +190,6 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
       <Box display="flex" justifyContent="center" p={4}>
         <CircularProgress />
       </Box>
-    )
-  }
-
-  if (error) {
-    return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        Error loading tracks: {error.message}
-      </Alert>
     )
   }
 
@@ -351,7 +343,7 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
   )
 }
 
-const TagsListContent = (props) => {
+const TagsList = (props) => {
   const [expanded, setExpanded] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [visibleColumns, setVisibleColumns] = useState({
@@ -368,9 +360,6 @@ const TagsListContent = (props) => {
   const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'))
   const { permissions } = usePermissions()
 
-  // Use GraphQL hook to fetch tracks
-  const { tracks, loading, error, updateTrack } = useTracks()
-
   const handleExpandClick = () => {
     setExpanded(!expanded)
   }
@@ -384,6 +373,17 @@ const TagsListContent = (props) => {
       ...prev,
       [column]: event.target.checked
     }))
+  }
+
+  // Mock data for now - will be replaced with useTracks hook
+  const mockTracks = [
+    { id: '1', path: 'Library/Audiobook_Rus_200_017.mp3', title: 'Chapter 17', artist: 'John Smith', albumArtist: 'John Smith', album: 'Russian Stories', genre: 'Audiobook', trackNumber: 17, year: 2020 },
+    { id: '2', path: 'Library/Audiobook_Rus_200_018.mp3', title: 'Chapter 18', artist: 'John Smith', albumArtist: 'John Smith', album: 'Russian Stories', genre: 'Audiobook', trackNumber: 18, year: 2020 },
+  ]
+
+  const dummyUpdateTrack = async (path, field, value) => {
+    console.log(`Would update ${path} field ${field} to ${value}`)
+    return true
   }
 
   return (
@@ -458,20 +458,11 @@ const TagsListContent = (props) => {
       <TagsTable 
         searchTerm={searchTerm} 
         visibleColumns={visibleColumns}
-        tracks={tracks}
-        loading={loading}
-        error={error}
-        updateTrack={updateTrack}
+        tracks={mockTracks}
+        loading={false}
+        updateTrack={dummyUpdateTrack}
       />
     </>
-  )
-}
-
-const TagsList = (props) => {
-  return (
-    <ApolloProvider client={apolloClient}>
-      <TagsListContent {...props} />
-    </ApolloProvider>
   )
 }
 
