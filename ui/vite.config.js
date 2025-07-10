@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const frontendPort = parseInt(process.env.PORT) || 4534
-const backendPort = parseInt(process.env.BACKEND_PORT) || 4533
+const frontendPort = parseInt(process.env.PORT) || 4533
+const backendPort = frontendPort + 100
 
 // https://vitejs.dev/config/
 export default defineConfig({

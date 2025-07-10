@@ -9,7 +9,7 @@ import { createHash } from 'crypto';
 
 @Injectable()
 export class TagsService {
-  private readonly musicPath = process.env.MUSIC_PATH || '/music'; // Docker volume mount path
+  private readonly musicPath = process.env.MUSIC_PATH || '/Volumes/workFlow/startup/navidrome/music'; // Local development path
   private readonly supportedExtensions = ['.mp3', '.flac', '.ogg', '.m4a', '.mp4', '.aac', '.wma'];
 
   private generateTrackId(filePath: string): string {
@@ -75,33 +75,6 @@ export class TagsService {
       return null;
     }
   }
-
-  // Mock data for development - will be replaced with real metadata reading
-  private mockTracks: Track[] = [
-    {
-      id: '1',
-      path: 'Library/Audiobook_Rus_200_017.mp3',
-      title: 'Chapter 17',
-      artist: 'John Smith',
-      albumArtist: 'John Smith',
-      album: 'Russian Stories',
-      genre: 'Audiobook',
-      trackNumber: 17,
-      year: 2020,
-    },
-    {
-      id: '2',
-      path: 'Library/Audiobook_Rus_200_018.mp3',
-      title: 'Chapter 18',
-      artist: 'John Smith',
-      albumArtist: 'John Smith',
-      album: 'Russian Stories',
-      genre: 'Audiobook',
-      trackNumber: 18,
-      year: 2020,
-    },
-    // Add more mock data as needed
-  ];
 
   async findAll(searchPath?: string): Promise<Track[]> {
     try {

@@ -96,7 +96,9 @@ const Admin = (props) => {
     >
       {(permissions) => [
         <Resource name="album" {...album} options={{ subMenu: 'albumList' }} />,
-        <Resource name="tags" {...tags} />,
+        permissions === 'admin' ? (
+          <Resource name="tags" {...tags} />
+        ) : null,
         <Resource name="artist" {...artist} />,
         <Resource name="song" {...song} />,
         <Resource

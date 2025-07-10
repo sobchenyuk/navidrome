@@ -8,17 +8,9 @@ FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/alpine:3.19 AS xx-b
 ENV XX_VERSION=b4e4c451c778822e6742bfc9d9a91d7c7d885c8a
 
 RUN apk add -U --no-cache git
-RUN git clone https://github.com/tonistiigi/xx && \
-    cd xx && \
-    git checkout ${XX_VERSION} && \
-    mkdir -p /out && \
-    cp src/xx-* /out/
+RUN git clone https://github.com/tonistiigi/xx &&     cd xx &&     git checkout ${XX_VERSION} &&     mkdir -p /out &&     cp src/xx-* /out/
 
-RUN cd /out && \
-    ln -s xx-cc /out/xx-clang && \
-    ln -s xx-cc /out/xx-clang++ && \
-    ln -s xx-cc /out/xx-c++ && \
-    ln -s xx-apt /out/xx-apt-get
+RUN cd /out &&     ln -s xx-cc /out/xx-clang &&     ln -s xx-cc /out/xx-clang++ &&     ln -s xx-cc /out/xx-c++ &&     ln -s xx-apt /out/xx-apt-get
 
 # xx mimics the original tonistiigi/xx image
 FROM scratch AS xx
@@ -142,4 +134,3 @@ EXPOSE ${ND_PORT}
 WORKDIR /app
 
 ENTRYPOINT ["/app/navidrome"]
-
