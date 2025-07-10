@@ -23,7 +23,10 @@ export default defineConfig({
     host: true,
     port: frontendPort,
     proxy: {
-      '^/(auth|api|rest|backgrounds)/.*': 'http://localhost:' + backendPort,
+      '^/(auth|api|rest|backgrounds|graphql)': {
+        target: process.env.VITE_API_PROXY || 'http://tagger:3010',
+        changeOrigin: true,
+      },
     },
   },
   base: './',
