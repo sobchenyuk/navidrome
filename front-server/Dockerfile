@@ -22,7 +22,7 @@ RUN npm run build
 RUN ls -la dist/
 
 # Expose port
-EXPOSE 3005
+EXPOSE 3010
 
 # Start the application in production mode
 CMD ["node", "dist/main.js"]

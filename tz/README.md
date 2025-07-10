@@ -92,7 +92,7 @@ services:
     container_name: tagger
     build: ./tagger
     expose:
-      - "3005"
+      - "3010"
     volumes:
       - ./music:/music
     networks:
@@ -103,7 +103,7 @@ networks:
     driver: bridge
 ```
 
-> ⚠️ Do NOT expose port 3005 publicly. Keep it internal.
+> ⚠️ Do NOT expose port 3010 publicly. Keep it internal.
 
 ---
 

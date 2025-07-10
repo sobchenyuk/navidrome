@@ -19,7 +19,7 @@ docker-compose logs -f
 ## 📡 Доступные сервисы
 
 - **Navidrome UI**: http://localhost:4533
-- **GraphQL API**: http://localhost:3005/graphql
+- **GraphQL API**: http://localhost:3010/graphql
 - **Tags Module**: Интегрирован в Navidrome UI (вкладка "Tags")
 
 ## 📁 Структура проекта
@@ -104,10 +104,10 @@ docker-compose restart front-server
 
 **Front-server**:
 - `MUSIC_PATH` - путь к папке с музыкой (по умолчанию `/music`)
-- `PORT` - порт сервера (по умолчанию `3005`)
+- `PORT` - порт сервера (по умолчанию `3010`)
 
 **UI**:
-- `VITE_GRAPHQL_URI` - URL GraphQL API (по умолчанию `http://localhost:3005/graphql`)
+- `VITE_GRAPHQL_URI` - URL GraphQL API (по умолчанию `http://localhost:3010/graphql`)
 
 ### Docker тома
 
@@ -132,7 +132,7 @@ docker-compose logs navidrome
 
 ### Проверить GraphQL API
 ```bash
-curl http://localhost:3005/graphql
+curl http://localhost:3010/graphql
 ```
 
 ### Проверить health check
@@ -146,7 +146,7 @@ docker-compose exec front-server node --version
 - **Решение**: Проверьте, что папка `./music` существует и содержит аудиофайлы
 
 **Проблема**: UI не подключается к GraphQL API
-- **Решение**: Убедитесь что front-server запущен на порту 3005
+- **Решение**: Убедитесь что front-server запущен на порту 3010
 
 **Проблема**: CORS ошибки
 - **Решение**: Front-server настроен на прием запросов от любых источников

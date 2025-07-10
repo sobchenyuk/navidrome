@@ -17,7 +17,7 @@ npm run start:dev
 
 ## 📡 GraphQL Playground
 
-Once running, visit: http://localhost:3005/graphql
+Once running, visit: http://localhost:3010/graphql
 
 ## 🔧 Available Scripts
 
@@ -74,7 +74,7 @@ input TagInput {
 
 ## 🐳 Docker Integration
 
-This service runs on port 3005 inside the Docker network and connects to the shared music volume.
+This service runs on port 3010 inside the Docker network and connects to the shared music volume.
 
 ## 📚 Libraries Used
 
