@@ -1,16 +1,24 @@
-FROM --platform=$BUILDPLATFORM ghcr.io/crazy-max/osxcross:14.5-debian AS osxcross
+FROM ghcr.io/crazy-max/osxcross:14.5-debian AS osxcross
 
 ########################################################################################################################
 ### Build xx (orignal image: tonistiigi/xx)
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/alpine:3.19 AS xx-build
+FROM public.ecr.aws/docker/library/alpine:3.19 AS xx-build
 
 # v1.5.0
 ENV XX_VERSION=b4e4c451c778822e6742bfc9d9a91d7c7d885c8a
 
 RUN apk add -U --no-cache git
-RUN git clone https://github.com/tonistiigi/xx &&     cd xx &&     git checkout ${XX_VERSION} &&     mkdir -p /out &&     cp src/xx-* /out/
+RUN git clone https://github.com/tonistiigi/xx && \
+    cd xx && \
+    git checkout ${XX_VERSION} && \
+    mkdir -p /out && \
+    cp src/xx-* /out/
 
-RUN cd /out &&     ln -s xx-cc /out/xx-clang &&     ln -s xx-cc /out/xx-clang++ &&     ln -s xx-cc /out/xx-c++ &&     ln -s xx-apt /out/xx-apt-get
+RUN cd /out && \
+    ln -s xx-cc /out/xx-clang && \
+    ln -s xx-cc /out/xx-clang++ && \
+    ln -s xx-cc /out/xx-c++ && \
+    ln -s xx-apt /out/xx-apt-get
 
 # xx mimics the original tonistiigi/xx image
 FROM scratch AS xx
@@ -18,7 +26,7 @@ COPY --from=xx-build /out/ /usr/bin/
 
 ########################################################################################################################
 ### Get TagLib
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/alpine:3.19 AS taglib-build
+FROM public.ecr.aws/docker/library/alpine:3.19 AS taglib-build
 ARG TARGETPLATFORM
 ARG CROSS_TAGLIB_VERSION=2.1.1-1
 ENV CROSS_TAGLIB_RELEASES_URL=https://github.com/navidrome/cross-taglib/releases/download/v${CROSS_TAGLIB_VERSION}/
@@ -36,7 +44,7 @@ EOT
 
 ########################################################################################################################
 ### Build Navidrome UI
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:lts-alpine AS ui
+FROM public.ecr.aws/docker/library/node:lts-alpine AS ui
 WORKDIR /app
 
 # Install node dependencies
@@ -53,12 +61,12 @@ COPY --from=ui /build /build
 
 ########################################################################################################################
 ### Build Navidrome binary
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.24-bookworm AS base
+FROM public.ecr.aws/docker/library/golang:1.24-bookworm AS base
 RUN apt-get update && apt-get install -y clang lld
 COPY --from=xx / /
 WORKDIR /workspace
 
-FROM --platform=$BUILDPLATFORM base AS build
+FROM base AS build
 
 # Install build dependencies for the target platform
 ARG TARGETPLATFORM
