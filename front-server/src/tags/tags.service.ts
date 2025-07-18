@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Track } from './track.model';
 import { TagInput } from './tag.input';
+import { DatabaseService } from './database.service';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { parseFile } from 'music-metadata';
@@ -9,25 +10,25 @@ import { createHash } from 'crypto';
 
 @Injectable()
 export class TagsService {
+  constructor(private readonly databaseService: DatabaseService) {}
+
   private readonly musicPaths: string[] = (() => {
-    const raw = process.env.MUSIC_PATHS ?? process.env.MUSIC_PATH ?? ''; // ← лишаємо й скорочену назву
+    const raw = process.env.MUSIC_PATHS ?? process.env.MUSIC_PATH ?? '';
 
-    if (!raw) return ['/music'];               // дефолт
+    if (!raw) return ['/music'];
 
-    // 1) спроба розпарсити як JSON
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed;
     } catch (_) { /* не JSON */ }
 
-    // 2) якщо є кома → сплітимо
     if (raw.includes(',')) {
       return raw.split(',').map(p => p.trim()).filter(Boolean);
     }
 
-    // 3) інакше – один шлях
     return [raw.trim()];
   })();
+
   private readonly supportedExtensions = ['.mp3', '.flac', '.ogg', '.m4a', '.mp4', '.aac', '.wma'];
 
   private generateTrackId(filePath: string): string {
@@ -44,11 +45,9 @@ export class TagsService {
         const fullPath = path.join(dirPath, item.name);
 
         if (item.isDirectory()) {
-          // Recursively scan subdirectories
           const subFiles = await this.scanDirectory(fullPath);
           audioFiles.push(...subFiles);
         } else if (item.isFile()) {
-          // Check if file has supported audio extension
           const ext = path.extname(item.name).toLowerCase();
           if (this.supportedExtensions.includes(ext)) {
             audioFiles.push(fullPath);
@@ -64,17 +63,13 @@ export class TagsService {
 
   private async readMetadata(filePath: string): Promise<Track | null> {
     try {
-      // 🔍 Визначаємо, відносно якого каталогу будувати шлях
       const baseDir = Array.isArray(this.musicPaths)
-        ? this.musicPaths.find(p => filePath.startsWith(p))      // збігається з поточним файлом
-        ?? this.musicPaths[0]                                  // fallback — перший елемент
-        : this.musicPaths;                                       // одиночний рядок
+        ? this.musicPaths.find(p => filePath.startsWith(p)) ?? this.musicPaths[0]
+        : this.musicPaths;
 
       const relativePath = path.relative(baseDir, filePath);
-
       const metadata = await parseFile(filePath);
 
-      // 🖼️ Витягуємо обкладинку, якщо є
       let cover: string | undefined;
       if (metadata.common.picture?.length) {
         const pic = metadata.common.picture[0];
@@ -101,50 +96,17 @@ export class TagsService {
     }
   }
 
-  // Mock data for development - will be replaced with real metadata reading
-  private mockTracks: Track[] = [
-    {
-      id: '1',
-      path: 'Library/Audiobook_Rus_200_017.mp3',
-      title: 'Chapter 17',
-      artist: 'John Smith',
-      albumArtist: 'John Smith',
-      album: 'Russian Stories',
-      genre: 'Audiobook',
-      trackNumber: 17,
-      year: 2020,
-    },
-    {
-      id: '2',
-      path: 'Library/Audiobook_Rus_200_018.mp3',
-      title: 'Chapter 18',
-      artist: 'John Smith',
-      albumArtist: 'John Smith',
-      album: 'Russian Stories',
-      genre: 'Audiobook',
-      trackNumber: 18,
-      year: 2020,
-    },
-    // Add more mock data as needed
-  ];
-
-  async findAll(searchPath?: string): Promise<Track[]> {
+  async indexAllTracks(): Promise<boolean> {
     try {
-      console.log('🔍 Scanning for audio files...');
+      console.log('🔄 Starting track indexing...');
 
-      // 1️⃣ Масив базових директорій
-      const baseDirs = Array.isArray(this.musicPaths)
-        ? this.musicPaths
-        : [this.musicPaths];
+      // Очищаем БД
+      await this.databaseService.clearAllAudioFiles();
 
-      // 2️⃣ Директорії, які реально скануватимемо
-      const dirsToScan = baseDirs.map(dir =>
-        searchPath ? path.join(dir, searchPath) : dir,
-      );
+      const baseDirs = Array.isArray(this.musicPaths) ? this.musicPaths : [this.musicPaths];
 
-      // 3️⃣ Відфільтровуємо ті, що існують
       const validDirs: string[] = [];
-      for (const dir of dirsToScan) {
+      for (const dir of baseDirs) {
         try {
           await fs.access(dir);
           validDirs.push(dir);
@@ -152,26 +114,48 @@ export class TagsService {
           console.warn(`Music directory not found: ${dir}`);
         }
       }
-      if (validDirs.length === 0) return [];
 
-      // 4️⃣ Рекурсивно збираємо всі аудіофайли з кожної директорії
-      let audioFiles: string[] = [];
+      if (validDirs.length === 0) {
+        console.error('No valid music directories found');
+        return false;
+      }
+
+      let totalFiles = 0;
       for (const dir of validDirs) {
-        const files = await this.scanDirectory(dir);
-        audioFiles = audioFiles.concat(files);
+        const audioFiles = await this.scanDirectory(dir);
+        
+        for (const filePath of audioFiles) {
+          const baseDir = this.musicPaths.find(p => filePath.startsWith(p)) ?? this.musicPaths[0];
+          const relativePath = path.relative(baseDir, filePath);
+          
+          await this.databaseService.insertAudioFile(relativePath);
+          totalFiles++;
+        }
       }
-      console.log(`📁 Found ${audioFiles.length} audio files`);
 
-      if (!audioFiles.length) return [];
+      console.log(`✅ Indexed ${totalFiles} audio files`);
+      return true;
+    } catch (err) {
+      console.error('Error indexing tracks:', err);
+      return false;
+    }
+  }
 
-      // 5️⃣ Читаємо метадані (обмежимося першими 50 для швидкості)
+  async findAll(limit: number = 25, offset: number = 0, search?: string): Promise<Track[]> {
+    try {
+      const audioFiles = await this.databaseService.getAllAudioFiles(limit, offset, search);
       const tracks: Track[] = [];
-      for (const file of audioFiles.slice(0, 50)) {
-        const track = await this.readMetadata(file);
-        if (track) tracks.push(track);
+
+      for (const audioFile of audioFiles) {
+        const baseDir = Array.isArray(this.musicPaths) ? this.musicPaths[0] : this.musicPaths;
+        const fullPath = path.join(baseDir, audioFile.path);
+        
+        const track = await this.readMetadata(fullPath);
+        if (track) {
+          tracks.push(track);
+        }
       }
 
-      console.log(`🎵 Successfully loaded ${tracks.length} tracks`);
       return tracks;
     } catch (err) {
       console.error('Error in findAll:', err);
@@ -179,17 +163,24 @@ export class TagsService {
     }
   }
 
+  async getTracksCount(search?: string): Promise<number> {
+    try {
+      return await this.databaseService.getAudioFilesCount(search);
+    } catch (err) {
+      console.error('Error getting tracks count:', err);
+      return 0;
+    }
+  }
+
   async findOne(filePath: string): Promise<Track | null> {
     try {
-      // Визначаємо, з якої базової директорії складати абсолютний шлях
       const baseDir = Array.isArray(this.musicPaths)
-        ? this.musicPaths.find(p => filePath.startsWith(p))      // якщо прийшов повний шлях
-        ?? this.musicPaths[0]                                  // fallback
-        : this.musicPaths;                                       // одиночний шлях
+        ? this.musicPaths.find(p => filePath.startsWith(p)) ?? this.musicPaths[0]
+        : this.musicPaths;
 
       const fullPath = path.isAbsolute(filePath)
-        ? filePath                       // якщо вже абсолютний
-        : path.join(baseDir, filePath);  // робимо абсолютним
+        ? filePath
+        : path.join(baseDir, filePath);
 
       return await this.readMetadata(fullPath);
     } catch (err) {
@@ -200,12 +191,10 @@ export class TagsService {
 
   async updateTags(filePath: string, tagInput: TagInput): Promise<boolean> {
     try {
-      // 1️⃣ Обираємо корінь
       const baseDir = Array.isArray(this.musicPaths)
         ? this.musicPaths.find(p => filePath.startsWith(p)) ?? this.musicPaths[0]
         : this.musicPaths;
 
-      // 2️⃣ Формуємо повний шлях
       const fullPath = path.isAbsolute(filePath)
         ? filePath
         : path.join(baseDir, filePath);
@@ -214,12 +203,12 @@ export class TagsService {
       console.log(`🏷️ Updating tags for ${fullPath}:`, tagInput);
 
       if (ext === '.mp3') {
-        // Підготовка тегів, відфільтровуємо undefined
         const tags = Object.fromEntries(
           Object.entries({
             title: tagInput.title,
             artist: tagInput.artist,
-            albumArtist: tagInput.albumArtist,
+            performerInfo: tagInput.albumArtist, // node-id3 использует performerInfo для albumArtist
+            TPE2: tagInput.albumArtist, // дублируем для надежности
             album: tagInput.album,
             year: tagInput.year?.toString(),
             trackNumber: tagInput.trackNumber?.toString(),
@@ -231,7 +220,7 @@ export class TagsService {
 
         if (res instanceof Error) {
           console.error(`❌ Failed to update MP3 tags: ${res.message}`);
-          return false;                          // <- чистий boolean
+          return false;
         }
 
         console.log('✅ Successfully updated MP3 tags');
@@ -248,7 +237,6 @@ export class TagsService {
 
   async uploadCover(filePath: string, coverData: Buffer): Promise<boolean> {
     try {
-      // TODO: Implement cover upload using node-id3 or flac-metadata
       console.log(`Uploading cover for ${filePath}`);
       return true;
     } catch (error) {

@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Float } from '@nestjs/graphql';
 import { TagsService } from './tags.service';
 import { Track } from './track.model';
 import { TagInput } from './tag.input';
@@ -9,9 +9,18 @@ export class TagsResolver {
 
   @Query(() => [Track], { name: 'tracks' })
   async getTracks(
-    @Args('path', { type: () => String, nullable: true }) path?: string,
+    @Args('limit', { type: () => Float, defaultValue: 25 }) limit: number,
+    @Args('offset', { type: () => Float, defaultValue: 0 }) offset: number,
+    @Args('search', { type: () => String, nullable: true }) search?: string,
   ): Promise<Track[]> {
-    return this.tagsService.findAll(path);
+    return this.tagsService.findAll(limit, offset, search);
+  }
+
+  @Query(() => Number, { name: 'tracksCount' })
+  async getTracksCount(
+    @Args('search', { type: () => String, nullable: true }) search?: string,
+  ): Promise<number> {
+    return this.tagsService.getTracksCount(search);
   }
 
   @Query(() => Track, { name: 'track', nullable: true })
@@ -36,5 +45,10 @@ export class TagsResolver {
   ): Promise<boolean> {
     const buffer = Buffer.from(coverData, 'base64');
     return this.tagsService.uploadCover(path, buffer);
+  }
+
+  @Mutation(() => Boolean)
+  async indexTracks(): Promise<boolean> {
+    return this.tagsService.indexAllTracks();
   }
 }

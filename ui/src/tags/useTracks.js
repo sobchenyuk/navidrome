@@ -1,46 +1,69 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_TRACKS, UPDATE_TAGS } from './graphql/queries';
+import { GET_TRACKS, UPDATE_TAGS, INDEX_TRACKS, GET_TRACKS_COUNT } from './graphql/queries';
 
-export const useTracks = (searchPath) => {
+export const useTracks = (limit = 25, offset = 0, search) => {
   const { data, loading, error, refetch } = useQuery(GET_TRACKS, {
-    variables: { path: searchPath },
+    variables: { limit, offset, search },
     errorPolicy: 'all',
+  });
+
+  const { data: countData, refetch: refetchCount } = useQuery(GET_TRACKS_COUNT, {
+    variables: { search },
+    errorPolicy: 'all',
+    skip: !search && search !== '', // пропускаем запрос если search undefined
   });
 
   const [updateTagsMutation] = useMutation(UPDATE_TAGS, {
     errorPolicy: 'all',
     onCompleted: () => {
-      // Refetch tracks after successful update
       refetch();
     },
   });
 
+  const [indexTracksMutation] = useMutation(INDEX_TRACKS, {
+    errorPolicy: 'all',
+  });
+
   const [localData, setLocalData] = useState([]);
-  
-  // Use GraphQL data or fallback to local data
+
   const tracks = data?.tracks || localData;
 
   const updateTrack = useCallback(async (trackPath, field, value) => {
     try {
-      // Update local state immediately for UI responsiveness
-      setLocalData(prevData => 
-        prevData.map(track => 
-          track.path === trackPath 
-            ? { ...track, [field]: value }
+      const fieldMap = {
+        artistName: 'artist',
+        albumName: 'album',
+        albumArtistName: 'albumArtist',
+        trackNum: 'trackNumber',
+        yearReleased: 'year',
+        genreType: 'genre',
+        titleText: 'title',
+        artist: 'artist',
+        album: 'album',
+        albumArtist: 'albumArtist',
+        trackNumber: 'trackNumber',
+        year: 'year',
+        genre: 'genre',
+        title: 'title',
+      };
+
+      const realField = fieldMap[field] || field;
+
+      setLocalData(prevData =>
+        prevData.map(track =>
+          track.path === trackPath
+            ? { ...track, [realField]: value }
             : track
         )
       );
 
-      // Prepare input object with only the changed field
-      const input = { [field]: value };
-      
-      // Convert string numbers to integers for specific fields
-      if (field === 'trackNumber' || field === 'year') {
-        input[field] = value ? parseInt(value, 10) : null;
+      const input = { [realField]: value };
+
+      if (realField === 'trackNumber' || realField === 'year') {
+        input[realField] = value ? parseInt(value, 10) : null;
       }
 
-      // Send mutation to backend
       const result = await updateTagsMutation({
         variables: {
           path: trackPath,
@@ -52,17 +75,29 @@ export const useTracks = (searchPath) => {
       return true;
     } catch (err) {
       console.error('Error updating tags:', err);
-      
-      // Revert local changes on error
+
       if (data?.tracks) {
         setLocalData(data.tracks);
       }
-      
+
       return false;
     }
   }, [updateTagsMutation, data]);
 
-  // Initialize local data when GraphQL data loads
+  const indexTracks = useCallback(async () => {
+    try {
+      console.log('🔄 Starting indexing...');
+      const result = await indexTracksMutation();
+      console.log('✅ Indexing completed:', result);
+      refetch(); // Обновляем данные после индексации
+      refetchCount(); // Обновляем количество
+      return true;
+    } catch (err) {
+      console.error('❌ Error indexing tracks:', err);
+      return false;
+    }
+  }, [indexTracksMutation, refetch, refetchCount]);
+
   useState(() => {
     if (data?.tracks && localData.length === 0) {
       setLocalData(data.tracks);
@@ -74,6 +109,8 @@ export const useTracks = (searchPath) => {
     loading,
     error,
     updateTrack,
+    indexTracks,
     refetch,
+    totalCount: countData?.tracksCount || 0,
   };
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMediaQuery, withWidth } from '@material-ui/core'
 import { ApolloProvider } from '@apollo/client'
 import {
@@ -50,10 +50,9 @@ const genres = [
 const currentYear = new Date().getFullYear()
 const years = Array.from({ length: currentYear - 1900 + 1 }, (_, i) => 1900 + i).reverse()
 
-const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateTrack }) => {
+const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateTrack, page, onPageChange, totalCount }) => {
   const [order, setOrder] = useState('asc')
   const [orderBy, setOrderBy] = useState('title')
-  const [page, setPage] = useState(0)
   const [rowsPerPage] = useState(25)
   const [editingCell, setEditingCell] = useState(null)
 
@@ -61,10 +60,6 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
     const isAsc = orderBy === property && order === 'asc'
     setOrder(isAsc ? 'desc' : 'asc')
     setOrderBy(property)
-  }
-
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage)
   }
 
   const handleCellClick = (rowId, field) => {
@@ -147,39 +142,8 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
     )
   }
 
-  // Filter data based on search term
-  const filteredData = tracks.filter(row => {
-    if (!searchTerm) return true
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      (row.path || '').toLowerCase().includes(searchLower) ||
-      (row.title || '').toLowerCase().includes(searchLower) ||
-      (row.artist || '').toLowerCase().includes(searchLower) ||
-      (row.albumArtist || '').toLowerCase().includes(searchLower) ||
-      (row.album || '').toLowerCase().includes(searchLower) ||
-      (row.genre || '').toLowerCase().includes(searchLower) ||
-      (row.year || '').toString().toLowerCase().includes(searchLower) ||
-      (row.trackNumber || '').toString().toLowerCase().includes(searchLower)
-    )
-  })
-
-  const sortedData = [...filteredData].sort((a, b) => {
-    let aValue = a[orderBy] || ''
-    let bValue = b[orderBy] || ''
-    
-    if (orderBy === 'trackNumber' || orderBy === 'year') {
-      aValue = parseInt(aValue) || 0
-      bValue = parseInt(bValue) || 0
-    }
-    
-    if (order === 'asc') {
-      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
-    } else {
-      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
-    }
-  })
-
-  const paginatedData = sortedData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+  // Данные уже отфильтрованы и отсортированы на сервере
+  const displayData = tracks
 
   const createSortHandler = (property) => () => {
     handleRequestSort(property)
@@ -296,7 +260,7 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
           </TableRow>
         </TableHead>
         <TableBody>
-          {paginatedData.map((row) => (
+          {displayData.map((row) => (
             <TableRow key={row.id}>
               <TableCell>{row.path?.substring(0, row.path.lastIndexOf('/')) || ''}</TableCell>
               <TableCell>{row.path?.substring(row.path.lastIndexOf('/') + 1) || ''}</TableCell>
@@ -342,10 +306,10 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
       <TablePagination
         rowsPerPageOptions={[25]}
         component="div"
-        count={filteredData.length}
+        count={totalCount || 0}
         rowsPerPage={rowsPerPage}
         page={page}
-        onPageChange={handleChangePage}
+        onPageChange={onPageChange}
       />
     </Paper>
   )
@@ -354,6 +318,11 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
 const TagsListContent = (props) => {
   const [expanded, setExpanded] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [page, setPage] = useState(0)
+  const [isIndexing, setIsIndexing] = useState(false)
+  const [showNotification, setShowNotification] = useState(false)
+  const [notificationTimer, setNotificationTimer] = useState(null)
   const [visibleColumns, setVisibleColumns] = useState({
     albumArtist: true,
     albumName: true,
@@ -368,8 +337,27 @@ const TagsListContent = (props) => {
   const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'))
   const { permissions } = usePermissions()
 
+  // Debounce для поиска
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setPage(0) // сбрасываем на первую страницу при поиске
+    }, 300) // 300мс задержка
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Cleanup notification timer on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationTimer) {
+        clearTimeout(notificationTimer)
+      }
+    }
+  }, [])
+
   // Use GraphQL hook to fetch tracks
-  const { tracks, loading, error, updateTrack } = useTracks()
+  const { tracks, loading, error, updateTrack, indexTracks, totalCount } = useTracks(25, page * 25, debouncedSearchTerm)
 
   const handleExpandClick = () => {
     setExpanded(!expanded)
@@ -386,56 +374,98 @@ const TagsListContent = (props) => {
     }))
   }
 
+  const handleIndexClick = async () => {
+    setIsIndexing(true)
+    const success = await indexTracks()
+    setIsIndexing(false)
+    
+    if (success) {
+      setShowNotification(true)
+      // Очищаем предыдущий таймер если есть
+      if (notificationTimer) {
+        clearTimeout(notificationTimer)
+      }
+      // Создаем новый таймер
+      const timer = setTimeout(() => {
+        setShowNotification(false)
+        setNotificationTimer(null)
+      }, 3000)
+      setNotificationTimer(timer)
+    }
+  }
+
+  const handlePageChange = (event, newPage) => {
+    setPage(newPage)
+  }
+
   return (
     <>
-      {/* Column chooser section */}
-      <Box sx={{ mb: 2, p: 2 }}>
+      {/* Header with buttons */}
+      <Box sx={{ mb: 2, p: 2, display: 'flex', justifyContent: 'space-between' }}>
         <Button 
           onClick={handleExpandClick} 
           endIcon={expanded ? <ExpandLess /> : <ExpandMore />}
         >
           Choose columns
         </Button>
-
-        {/* Column chooser - collapsible */}
-        <Collapse in={expanded}>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle1" sx={{ mb: 1 }}>
-              Common tags
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.albumArtist} onChange={handleColumnToggle('albumArtist')} />}
-                label="Album Artist"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.albumName} onChange={handleColumnToggle('albumName')} />}
-                label="Album Name"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.artist} onChange={handleColumnToggle('artist')} />}
-                label="Artist"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.genre} onChange={handleColumnToggle('genre')} />}
-                label="Genre"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.trackName} onChange={handleColumnToggle('trackName')} />}
-                label="Track Name"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.trackNumber} onChange={handleColumnToggle('trackNumber')} />}
-                label="Track Number"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={visibleColumns.year} onChange={handleColumnToggle('year')} />}
-                label="Year"
-              />
-            </Box>
-          </Box>
-        </Collapse>
+        
+        <Button onClick={handleIndexClick} disabled={isIndexing}>
+          {isIndexing ? (
+            <>
+              <CircularProgress size={16} sx={{ mr: 1 }} />
+              Индексация...
+            </>
+          ) : (
+            'Проиндексировать'
+          )}
+        </Button>
       </Box>
+
+      {/* Column chooser - collapsible */}
+      <Collapse in={expanded}>
+        <Box sx={{ mb: 2, p: 2, pt: 0 }}>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            Common tags
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.albumArtist} onChange={handleColumnToggle('albumArtist')} />}
+              label="Album Artist"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.albumName} onChange={handleColumnToggle('albumName')} />}
+              label="Album Name"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.artist} onChange={handleColumnToggle('artist')} />}
+              label="Artist"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.genre} onChange={handleColumnToggle('genre')} />}
+              label="Genre"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.trackName} onChange={handleColumnToggle('trackName')} />}
+              label="Track Name"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.trackNumber} onChange={handleColumnToggle('trackNumber')} />}
+              label="Track Number"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={visibleColumns.year} onChange={handleColumnToggle('year')} />}
+              label="Year"
+            />
+          </Box>
+        </Box>
+      </Collapse>
+
+      {/* Уведомление об успешной индексации */}
+      {showNotification && (
+        <Alert severity="success" sx={{ m: 2 }}>
+          ✅ Индексация успешно завершена!
+        </Alert>
+      )}
 
       {/* Search */}
       <Box sx={{ mb: 2, p: 2 }}>
@@ -455,14 +485,29 @@ const TagsListContent = (props) => {
       </Box>
 
       {/* Table */}
-      <TagsTable 
-        searchTerm={searchTerm} 
-        visibleColumns={visibleColumns}
-        tracks={tracks}
-        loading={loading}
-        error={error}
-        updateTrack={updateTrack}
-      />
+      {isIndexing ? (
+        <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+          <CircularProgress sx={{ mb: 2 }} />
+          <Typography variant="h6" color="textSecondary">
+            Идет индексация файлов...
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Пожалуйста, подождите
+          </Typography>
+        </Box>
+      ) : (
+        <TagsTable 
+          searchTerm={searchTerm} 
+          visibleColumns={visibleColumns}
+          tracks={tracks}
+          loading={loading}
+          error={error}
+          updateTrack={updateTrack}
+          page={page}
+          onPageChange={handlePageChange}
+          totalCount={totalCount}
+        />
+      )}
     </>
   )
 }

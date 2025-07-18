@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 export const GET_TRACKS = gql`
-  query GetTracks($path: String) {
-    tracks(path: $path) {
+  query GetTracks($limit: Float, $offset: Float, $search: String) {
+    tracks(limit: $limit, offset: $offset, search: $search) {
       id
       path
       title
@@ -43,5 +43,17 @@ export const UPDATE_TAGS = gql`
 export const UPLOAD_COVER = gql`
   mutation UploadCover($path: String!, $coverData: String!) {
     uploadCover(path: $path, coverData: $coverData)
+  }
+`;
+
+export const INDEX_TRACKS = gql`
+  mutation IndexTracks {
+    indexTracks
+  }
+`;
+
+export const GET_TRACKS_COUNT = gql`
+  query GetTracksCount($search: String) {
+    tracksCount(search: $search)
   }
 `;
