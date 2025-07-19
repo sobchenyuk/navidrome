@@ -6,11 +6,14 @@ import {
   SearchInput,
   TextField,
   usePermissions,
+  useTranslate,
 } from 'react-admin'
 import {
   List,
   SongSimpleList,
   useResourceRefresh,
+  Pagination,
+  Title,
 } from '../common'
 import {
   Box,
@@ -26,7 +29,6 @@ import {
   TableRow,
   TableCell,
   TableSortLabel,
-  TablePagination,
   TextField as MuiTextField,
   InputAdornment,
   Select,
@@ -43,10 +45,9 @@ import genres from './genres.js'
 const currentYear = new Date().getFullYear()
 const years = Array.from({ length: currentYear - 1900 + 1 }, (_, i) => 1900 + i).reverse()
 
-const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateTrack, page, onPageChange, totalCount }) => {
+const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateTrack, page, onPageChange, totalCount, rowsPerPage, onChangeRowsPerPage, onSortChange }) => {
   const [order, setOrder] = useState('asc')
   const [orderBy, setOrderBy] = useState('title')
-  const [rowsPerPage] = useState(25)
   const [editingCell, setEditingCell] = useState(null)
   const [fieldValues, setFieldValues] = useState({}) // локальные значения полей
   const [debounceTimers, setDebounceTimers] = useState({}) // таймеры для debounce
@@ -62,8 +63,10 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
 
   const handleRequestSort = (property) => {
     const isAsc = orderBy === property && order === 'asc'
-    setOrder(isAsc ? 'desc' : 'asc')
+    const newOrder = isAsc ? 'desc' : 'asc'
+    setOrder(newOrder)
     setOrderBy(property)
+    onSortChange(property, newOrder)
   }
 
   const handleCellClick = (rowId, field) => {
@@ -255,6 +258,17 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
 
   return (
     <Paper>
+      {/* Пагинация сверху */}
+      <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
+        <Pagination
+          page={page + 1}
+          perPage={rowsPerPage}
+          total={totalCount || 0}
+          setPage={(newPage) => onPageChange(null, newPage - 1)}
+          setPerPage={onChangeRowsPerPage}
+        />
+      </Box>
+
       <Table>
         <TableHead>
           <TableRow>
@@ -391,26 +405,32 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
           ))}
         </TableBody>
       </Table>
-      <TablePagination
-        rowsPerPageOptions={[25]}
-        component="div"
-        count={totalCount || 0}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={onPageChange}
+
+      {/* Пагинация снизу */}
+      <Pagination
+        page={page + 1}
+        perPage={rowsPerPage}
+        total={totalCount || 0}
+        setPage={(newPage) => onPageChange(null, newPage - 1)}
+        setPerPage={onChangeRowsPerPage}
       />
     </Paper>
   )
 }
 
 const TagsListContent = (props) => {
+  const translate = useTranslate()
   const [expanded, setExpanded] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(25)
+  const [sortBy, setSortBy] = useState('title')
+  const [sortOrder, setSortOrder] = useState('asc')
   const [isIndexing, setIsIndexing] = useState(false)
   const [showNotification, setShowNotification] = useState(false)
   const [notificationTimer, setNotificationTimer] = useState(null)
+  const [refetchTimer, setRefetchTimer] = useState(null) // для таймера refetch
   const [visibleColumns, setVisibleColumns] = useState({
     albumArtist: true,
     albumName: true,
@@ -441,11 +461,14 @@ const TagsListContent = (props) => {
       if (notificationTimer) {
         clearTimeout(notificationTimer)
       }
+      if (refetchTimer) {
+        clearTimeout(refetchTimer)
+      }
     }
   }, [])
 
   // Use GraphQL hook to fetch tracks
-  const { tracks, loading, error, updateTrack, indexTracks, totalCount } = useTracks(25, page * 25, debouncedSearchTerm)
+  const { tracks, loading, error, updateTrack, indexTracks, totalCount, refetch } = useTracks(rowsPerPage, page * rowsPerPage, debouncedSearchTerm, sortBy, sortOrder)
 
   const handleExpandClick = () => {
     setExpanded(!expanded)
@@ -484,6 +507,28 @@ const TagsListContent = (props) => {
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage)
+  }
+
+  const handleChangeRowsPerPage = (newRowsPerPage) => {
+    setRowsPerPage(newRowsPerPage)
+    setPage(0) // сбрасываем на первую страницу при изменении количества
+
+    // Очищаем предыдущий таймер если есть
+    if (refetchTimer) {
+      clearTimeout(refetchTimer)
+    }
+
+    // Принудительно обновляем данные
+    const timer = setTimeout(() => {
+      refetch()
+      setRefetchTimer(null)
+    }, 0)
+    setRefetchTimer(timer)
+  }
+
+  const handleSortChange = (property, order) => {
+    setSortBy(property)
+    setSortOrder(order)
   }
 
   return (
@@ -594,6 +639,9 @@ const TagsListContent = (props) => {
           page={page}
           onPageChange={handlePageChange}
           totalCount={totalCount}
+          rowsPerPage={rowsPerPage}
+          onChangeRowsPerPage={handleChangeRowsPerPage}
+          onSortChange={handleSortChange}
         />
       )}
     </>

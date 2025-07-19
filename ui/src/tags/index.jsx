@@ -13,4 +13,7 @@ export default {
       activeIcon={BookmarksIcon}
     />
   ),
+  options: {
+    label: 'Tags Editor'
+  },
 }

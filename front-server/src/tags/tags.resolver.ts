@@ -12,8 +12,10 @@ export class TagsResolver {
     @Args('limit', { type: () => Float, defaultValue: 25 }) limit: number,
     @Args('offset', { type: () => Float, defaultValue: 0 }) offset: number,
     @Args('search', { type: () => String, nullable: true }) search?: string,
+    @Args('sortBy', { type: () => String, nullable: true }) sortBy?: string,
+    @Args('sortOrder', { type: () => String, nullable: true }) sortOrder?: string,
   ): Promise<Track[]> {
-    return this.tagsService.findAll(limit, offset, search);
+    return this.tagsService.findAll(limit, offset, search, sortBy, sortOrder);
   }
 
   @Query(() => Number, { name: 'tracksCount' })

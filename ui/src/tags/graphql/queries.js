@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 export const GET_TRACKS = gql`
-  query GetTracks($limit: Float, $offset: Float, $search: String) {
-    tracks(limit: $limit, offset: $offset, search: $search) {
+  query GetTracks($limit: Float, $offset: Float, $search: String, $sortBy: String, $sortOrder: String) {
+    tracks(limit: $limit, offset: $offset, search: $search, sortBy: $sortBy, sortOrder: $sortOrder) {
       id
       path
       title

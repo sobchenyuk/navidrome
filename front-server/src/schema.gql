@@ -10,7 +10,7 @@ type Mutation {
 
 type Query {
   track(path: String!): Track
-  tracks(limit: Float! = 25, offset: Float! = 0, search: String): [Track!]!
+  tracks(limit: Float! = 25, offset: Float! = 0, search: String, sortBy: String, sortOrder: String): [Track!]!
   tracksCount(search: String): Float!
 }
 

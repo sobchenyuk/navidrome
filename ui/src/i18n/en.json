@@ -249,6 +249,9 @@
       "notifications": {},
       "actions": {}
     },
+    "tags": {
+      "name": "Tags Editor"
+    },
     "missing": {
       "name": "Missing File |||| Missing Files",
       "empty": "No Missing Files",

@@ -141,7 +141,7 @@ export class TagsService {
     }
   }
 
-  async findAll(limit: number = 25, offset: number = 0, search?: string): Promise<Track[]> {
+  async findAll(limit: number = 25, offset: number = 0, search?: string, sortBy?: string, sortOrder?: string): Promise<Track[]> {
     try {
       const audioFiles = await this.databaseService.getAllAudioFiles(limit, offset, search);
       const tracks: Track[] = [];
@@ -153,6 +153,33 @@ export class TagsService {
         const track = await this.readMetadata(fullPath);
         if (track) {
           tracks.push(track);
+        }
+      }
+
+      // Применяем сортировку
+      if (sortBy && sortOrder) {
+        const validSortFields = ['path', 'title', 'artist', 'albumArtist', 'album', 'genre', 'trackNumber', 'year'];
+        if (validSortFields.includes(sortBy)) {
+          tracks.sort((a, b) => {
+            let aValue = a[sortBy];
+            let bValue = b[sortBy];
+            
+            // Обработка null/undefined значений
+            if (aValue == null) aValue = '';
+            if (bValue == null) bValue = '';
+            
+            // Для числовых полей
+            if (sortBy === 'trackNumber' || sortBy === 'year') {
+              aValue = Number(aValue) || 0;
+              bValue = Number(bValue) || 0;
+              const numResult = aValue - bValue;
+              return sortOrder === 'desc' ? -numResult : numResult;
+            }
+            
+            // Для строковых полей
+            const strResult = String(aValue).localeCompare(String(bValue));
+            return sortOrder === 'desc' ? -strResult : strResult;
+          });
         }
       }
 

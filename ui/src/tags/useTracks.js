@@ -2,9 +2,9 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_TRACKS, UPDATE_TAGS, INDEX_TRACKS, GET_TRACKS_COUNT } from './graphql/queries';
 
-export const useTracks = (limit = 25, offset = 0, search) => {
+export const useTracks = (limit = 25, offset = 0, search, sortBy, sortOrder) => {
   const { data, loading, error, refetch } = useQuery(GET_TRACKS, {
-    variables: { limit, offset, search },
+    variables: { limit, offset, search, sortBy, sortOrder },
     errorPolicy: 'all',
   });
 
