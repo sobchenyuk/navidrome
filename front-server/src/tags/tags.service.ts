@@ -200,34 +200,36 @@ export class TagsService {
         : path.join(baseDir, filePath);
 
       const ext = path.extname(fullPath).toLowerCase();
-      console.log(`🏷️ Updating tags for ${fullPath}:`, tagInput);
 
       if (ext === '.mp3') {
-        const tags = Object.fromEntries(
-          Object.entries({
-            title: tagInput.title,
-            artist: tagInput.artist,
-            performerInfo: tagInput.albumArtist, // node-id3 использует performerInfo для albumArtist
-            TPE2: tagInput.albumArtist, // дублируем для надежности
-            album: tagInput.album,
-            year: tagInput.year?.toString(),
-            trackNumber: tagInput.trackNumber?.toString(),
-            genre: tagInput.genre,
-          }).filter(([, v]) => v !== undefined),
+        const tags = {
+          title: tagInput.title === null ? "" : tagInput.title,
+          artist: tagInput.artist === null ? "" : tagInput.artist,
+          performerInfo: tagInput.albumArtist === null ? "" : tagInput.albumArtist, // node-id3 использует performerInfo для albumArtist
+          TPE2: tagInput.albumArtist === null ? "" : tagInput.albumArtist, // дублируем для надежности
+          album: tagInput.album === null ? "" : tagInput.album,
+          year: tagInput.year === null ? "" : tagInput.year?.toString(),
+          TYER: tagInput.year === null ? "" : tagInput.year?.toString(), // ID3v2.3
+          TDRC: tagInput.year === null ? "" : tagInput.year?.toString(), // ID3v2.4
+          TRCK: tagInput.trackNumber === null ? "" : tagInput.trackNumber?.toString(),
+          genre: tagInput.genre === null ? "" : tagInput.genre,
+        };
+
+        // Удаляем только undefined значения, оставляем пустые строки
+        const filteredTags = Object.fromEntries(
+          Object.entries(tags).filter(([, v]) => v !== undefined)
         );
 
-        const res = NodeID3.update(tags, fullPath);
+        const res = NodeID3.update(filteredTags, fullPath);
 
         if (res instanceof Error) {
           console.error(`❌ Failed to update MP3 tags: ${res.message}`);
           return false;
         }
 
-        console.log('✅ Successfully updated MP3 tags');
         return res;
       }
 
-      console.log(`⚠️ Tag writing for ${ext} files not yet implemented`);
       return false;
     } catch (err) {
       console.error('Error updating tags:', err);
@@ -237,7 +239,6 @@ export class TagsService {
 
   async uploadCover(filePath: string, coverData: Buffer): Promise<boolean> {
     try {
-      console.log(`Uploading cover for ${filePath}`);
       return true;
     } catch (error) {
       console.error('Error uploading cover:', error);

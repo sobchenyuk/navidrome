@@ -60,7 +60,16 @@ export const useTracks = (limit = 25, offset = 0, search) => {
 
       const input = { [realField]: value };
 
-      if (realField === 'trackNumber' || realField === 'year') {
+      if (realField === 'trackNumber') {
+        // Для trackNumber: null остается null, 0 остается 0, пустая строка становится null
+        if (value === null || value === '') {
+          input[realField] = null;
+        } else {
+          const parsed = parseInt(value, 10);
+          input[realField] = isNaN(parsed) ? null : parsed;
+        }
+        console.log('🔢 trackNumber processing:', { originalValue: value, processedValue: input[realField] });
+      } else if (realField === 'year') {
         input[realField] = value ? parseInt(value, 10) : null;
       }
 
@@ -71,7 +80,6 @@ export const useTracks = (limit = 25, offset = 0, search) => {
         },
       });
 
-      console.log('Tags updated successfully:', result);
       return true;
     } catch (err) {
       console.error('Error updating tags:', err);

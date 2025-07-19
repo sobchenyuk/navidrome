@@ -12,12 +12,12 @@ import {
   SongSimpleList,
   useResourceRefresh,
 } from '../common'
-import { 
-  Box, 
-  Typography, 
-  Checkbox, 
-  FormControlLabel, 
-  Paper, 
+import {
+  Box,
+  Typography,
+  Checkbox,
+  FormControlLabel,
+  Paper,
   Collapse,
   Button,
   Table,
@@ -38,14 +38,7 @@ import { Alert } from '@material-ui/lab'
 import { ExpandMore, ExpandLess, Search } from '@material-ui/icons'
 import { apolloClient } from './graphql/client'
 import { useTracks } from './useTracks'
-
-const genres = [
-  'Alternative', 'Ambient', 'Audiobook', 'Blues', 'Britpop', 'Classical', 
-  'Country', 'Disco', 'Electronic', 'Experimental', 'Folk', 'Funk', 
-  'Gospel', 'Grunge', 'Hip-Hop', 'Indie', 'Jazz', 'Metal', 'New Wave', 
-  'Pop', 'Post-Punk', 'Progressive', 'Psychedelic', 'Punk', 'R&B', 
-  'Reggae', 'Rock', 'Soul', 'Speech', 'World'
-]
+import genres from './genres.js'
 
 const currentYear = new Date().getFullYear()
 const years = Array.from({ length: currentYear - 1900 + 1 }, (_, i) => 1900 + i).reverse()
@@ -55,6 +48,17 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
   const [orderBy, setOrderBy] = useState('title')
   const [rowsPerPage] = useState(25)
   const [editingCell, setEditingCell] = useState(null)
+  const [fieldValues, setFieldValues] = useState({}) // локальные значения полей
+  const [debounceTimers, setDebounceTimers] = useState({}) // таймеры для debounce
+
+  // Cleanup таймеров при размонтировании
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimers).forEach(timer => {
+        if (timer) clearTimeout(timer)
+      })
+    }
+  }, [])
 
   const handleRequestSort = (property) => {
     const isAsc = orderBy === property && order === 'asc'
@@ -65,14 +69,55 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
   const handleCellClick = (rowId, field) => {
     if (['albumArtist', 'artist', 'album', 'title', 'genre', 'trackNumber', 'year'].includes(field)) {
       setEditingCell({ rowId, field })
+      // Инициализируем локальное значение
+      const track = tracks.find(t => t.id === rowId)
+      if (track) {
+        const key = `${rowId}-${field}`
+        setFieldValues(prev => ({
+          ...prev,
+          [key]: track[field] || ''
+        }))
+      }
     }
   }
 
-  const handleCellChange = async (trackPath, field, value) => {
-    const success = await updateTrack(trackPath, field, value)
-    if (!success) {
-      console.error('Failed to update track')
+  const debouncedUpdate = (trackPath, field, value, rowId) => {
+    const key = `${rowId}-${field}`
+
+    // Очищаем предыдущий таймер
+    if (debounceTimers[key]) {
+      clearTimeout(debounceTimers[key])
     }
+
+    // Создаем новый таймер
+    const timer = setTimeout(async () => {
+      // Обрабатываем пустые значения и 0 для trackNumber
+      let processedValue = value
+
+      if (field === 'trackNumber') {
+        // Для trackNumber: пустая строка = null, "0" = 0, другие числа как есть
+        if (value === '') {
+          processedValue = null
+        } else {
+          const parsed = parseInt(value, 10)
+          processedValue = isNaN(parsed) ? null : parsed
+        }
+      }
+
+      await updateTrack(trackPath, field, processedValue)
+
+      // Удаляем таймер из списка
+      setDebounceTimers(prev => {
+        const { [key]: removed, ...rest } = prev
+        return rest
+      })
+    }, 300) // 300мс debounce
+
+    // Сохраняем таймер
+    setDebounceTimers(prev => ({
+      ...prev,
+      [key]: timer
+    }))
   }
 
   const handleCellBlur = () => {
@@ -81,10 +126,12 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
 
   const renderEditableCell = (row, field, value) => {
     const isEditing = editingCell?.rowId === row.id && editingCell?.field === field
-    
+    const key = `${row.id}-${field}`
+    const localValue = fieldValues[key]
+
     if (!isEditing) {
       return (
-        <span 
+        <span
           onClick={() => handleCellClick(row.id, field)}
           style={{ cursor: 'pointer', minHeight: '20px', display: 'block' }}
         >
@@ -93,12 +140,23 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
       )
     }
 
+    const handleInputChange = (newValue) => {
+      // Обновляем локальное значение
+      setFieldValues(prev => ({
+        ...prev,
+        [key]: newValue
+      }))
+
+      // Запускаем debounced обновление
+      debouncedUpdate(row.path, field, newValue, row.id)
+    }
+
     if (field === 'genre') {
       return (
         <FormControl size="small" fullWidth>
           <Select
-            value={value || ''}
-            onChange={(e) => handleCellChange(row.path, field, e.target.value)}
+            value={localValue !== undefined ? localValue : (value || '')}
+            onChange={(e) => handleInputChange(e.target.value)}
             onBlur={handleCellBlur}
             autoFocus
           >
@@ -111,31 +169,61 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
     }
 
     if (field === 'year') {
+      const handleYearInputChange = (newValue) => {
+        // Ограничиваем ввод только цифрами
+        const numericValue = newValue.replace(/[^0-9]/g, '')
+        handleInputChange(numericValue)
+      }
+
       return (
-        <FormControl size="small" fullWidth>
-          <Select
-            value={value || ''}
-            onChange={(e) => handleCellChange(row.path, field, e.target.value)}
-            onBlur={handleCellBlur}
-            autoFocus
-          >
-            {years.map(year => (
-              <MenuItem key={year} value={year.toString()}>{year}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <MuiTextField
+          size="small"
+          fullWidth
+          type="text"
+          value={localValue !== undefined ? localValue : (value || '')}
+          onChange={(e) => handleYearInputChange(e.target.value)}
+          onBlur={handleCellBlur}
+          autoFocus
+          placeholder="Год (напр. 2023)"
+          inputProps={{
+            maxLength: 4,
+            pattern: '[0-9]*'
+          }}
+        />
       )
     }
 
-    const fieldProps = field === 'trackNumber' 
+    const fieldProps = field === 'trackNumber'
       ? { size: "small", style: { width: '60px' } }
       : { size: "small", fullWidth: true }
+
+    if (field === 'trackNumber') {
+      const handleTrackNumberChange = (newValue) => {
+        // Ограничиваем ввод только цифрами
+        const numericValue = newValue.replace(/[^0-9]/g, '')
+        handleInputChange(numericValue)
+      }
+
+      return (
+        <MuiTextField
+          {...fieldProps}
+          value={localValue !== undefined ? localValue : (value || '')}
+          onChange={(e) => handleTrackNumberChange(e.target.value)}
+          onBlur={handleCellBlur}
+          autoFocus
+          placeholder="№"
+          inputProps={{
+            maxLength: 3
+          }}
+        />
+      )
+    }
 
     return (
       <MuiTextField
         {...fieldProps}
-        value={value || ''}
-        onChange={(e) => handleCellChange(row.path, field, e.target.value)}
+        value={localValue !== undefined ? localValue : (value || '')}
+        onChange={(e) => handleInputChange(e.target.value)}
         onBlur={handleCellBlur}
         autoFocus
       />
@@ -332,7 +420,7 @@ const TagsListContent = (props) => {
     trackNumber: true,
     year: false
   })
-  
+
   const isXsmall = useMediaQuery((theme) => theme.breakpoints.down('xs'))
   const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'))
   const { permissions } = usePermissions()
@@ -378,7 +466,7 @@ const TagsListContent = (props) => {
     setIsIndexing(true)
     const success = await indexTracks()
     setIsIndexing(false)
-    
+
     if (success) {
       setShowNotification(true)
       // Очищаем предыдущий таймер если есть
@@ -402,13 +490,13 @@ const TagsListContent = (props) => {
     <>
       {/* Header with buttons */}
       <Box sx={{ mb: 2, p: 2, display: 'flex', justifyContent: 'space-between' }}>
-        <Button 
-          onClick={handleExpandClick} 
+        <Button
+          onClick={handleExpandClick}
           endIcon={expanded ? <ExpandLess /> : <ExpandMore />}
         >
           Choose columns
         </Button>
-        
+
         <Button onClick={handleIndexClick} disabled={isIndexing}>
           {isIndexing ? (
             <>
@@ -496,8 +584,8 @@ const TagsListContent = (props) => {
           </Typography>
         </Box>
       ) : (
-        <TagsTable 
-          searchTerm={searchTerm} 
+        <TagsTable
+          searchTerm={searchTerm}
           visibleColumns={visibleColumns}
           tracks={tracks}
           loading={loading}
