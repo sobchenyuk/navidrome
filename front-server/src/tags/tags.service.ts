@@ -68,6 +68,15 @@ export class TagsService {
         : this.musicPaths;
 
       const relativePath = path.relative(baseDir, filePath);
+      
+      // Проверяем что файл существует
+      try {
+        await fs.access(filePath);
+      } catch {
+        console.warn(`📂 File not found: ${filePath}`);
+        return null;
+      }
+      
       const metadata = await parseFile(filePath);
 
       let cover: string | undefined;
@@ -128,8 +137,14 @@ export class TagsService {
           const baseDir = this.musicPaths.find(p => filePath.startsWith(p)) ?? this.musicPaths[0];
           const relativePath = path.relative(baseDir, filePath);
           
-          await this.databaseService.insertAudioFile(relativePath);
-          totalFiles++;
+          // Проверяем что файл реально читаем
+          try {
+            await fs.access(filePath);
+            await this.databaseService.insertAudioFile(relativePath);
+            totalFiles++;
+          } catch {
+            console.log(`⚠️ Skipping unreadable file during indexing: ${filePath}`);
+          }
         }
       }
 

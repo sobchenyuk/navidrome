@@ -1,11 +1,16 @@
 import { Resolver, Query, Mutation, Args, Float } from '@nestjs/graphql';
 import { TagsService } from './tags.service';
+import { EncodingService } from './encoding.service';
 import { Track } from './track.model';
 import { TagInput } from './tag.input';
+import { EncodingTaskStatus } from './encoding-task-status.model';
 
 @Resolver(() => Track)
 export class TagsResolver {
-  constructor(private readonly tagsService: TagsService) {}
+  constructor(
+    private readonly tagsService: TagsService,
+    private readonly encodingService: EncodingService,
+  ) {}
 
   @Query(() => [Track], { name: 'tracks' })
   async getTracks(
@@ -32,6 +37,11 @@ export class TagsResolver {
     return this.tagsService.findOne(path);
   }
 
+  @Query(() => EncodingTaskStatus, { name: 'encodingTaskStatus', nullable: true })
+  async getEncodingTaskStatus(): Promise<EncodingTaskStatus | null> {
+    return this.encodingService.getEncodingTaskStatus();
+  }
+
   @Mutation(() => Boolean)
   async updateTags(
     @Args('path', { type: () => String }) path: string,
@@ -52,5 +62,10 @@ export class TagsResolver {
   @Mutation(() => Boolean)
   async indexTracks(): Promise<boolean> {
     return this.tagsService.indexAllTracks();
+  }
+
+  @Mutation(() => Boolean)
+  async fixEncoding(): Promise<boolean> {
+    return this.encodingService.startEncodingFix();
   }
 }

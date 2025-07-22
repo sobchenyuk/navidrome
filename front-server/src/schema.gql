@@ -2,13 +2,21 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type EncodingTaskStatus {
+  found: Int!
+  processed: Int!
+  status: String!
+}
+
 type Mutation {
+  fixEncoding: Boolean!
   indexTracks: Boolean!
   updateTags(input: TagInput!, path: String!): Boolean!
   uploadCover(coverData: String!, path: String!): Boolean!
 }
 
 type Query {
+  encodingTaskStatus: EncodingTaskStatus
   track(path: String!): Track
   tracks(limit: Float! = 25, offset: Float! = 0, search: String, sortBy: String, sortOrder: String): [Track!]!
   tracksCount(search: String): Float!

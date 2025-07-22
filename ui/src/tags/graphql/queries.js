@@ -57,3 +57,20 @@ export const GET_TRACKS_COUNT = gql`
     tracksCount(search: $search)
   }
 `;
+
+// Encoding fix queries
+export const FIX_ENCODING = gql`
+  mutation FixEncoding {
+    fixEncoding
+  }
+`;
+
+export const GET_ENCODING_STATUS = gql`
+  query GetEncodingStatus {
+    encodingTaskStatus {
+      found
+      processed
+      status
+    }
+  }
+`;

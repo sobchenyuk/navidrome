@@ -40,6 +40,7 @@ import { Alert } from '@material-ui/lab'
 import { ExpandMore, ExpandLess, Search } from '@material-ui/icons'
 import { apolloClient } from './graphql/client'
 import { useTracks } from './useTracks'
+import { useEncoding } from './useEncoding'
 import genres from './genres.js'
 
 const currentYear = new Date().getFullYear()
@@ -272,14 +273,13 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Folder</TableCell>
             <TableCell>
               <TableSortLabel
                 active={orderBy === 'path'}
                 direction={orderBy === 'path' ? order : 'asc'}
                 onClick={createSortHandler('path')}
               >
-                File
+                Path
               </TableSortLabel>
             </TableCell>
             {visibleColumns.albumArtist && (
@@ -364,8 +364,7 @@ const TagsTable = ({ searchTerm, visibleColumns, tracks, loading, error, updateT
         <TableBody>
           {displayData.map((row) => (
             <TableRow key={row.id}>
-              <TableCell>{row.path?.substring(0, row.path.lastIndexOf('/')) || ''}</TableCell>
-              <TableCell>{row.path?.substring(row.path.lastIndexOf('/') + 1) || ''}</TableCell>
+              <TableCell title={row.path}>{row.path || ''}</TableCell>
               {visibleColumns.albumArtist && (
                 <TableCell>
                   {renderEditableCell(row, 'albumArtist', row.albumArtist)}
@@ -469,6 +468,9 @@ const TagsListContent = (props) => {
 
   // Use GraphQL hook to fetch tracks
   const { tracks, loading, error, updateTrack, indexTracks, totalCount, refetch } = useTracks(rowsPerPage, page * rowsPerPage, debouncedSearchTerm, sortBy, sortOrder)
+  
+  // Use encoding hook
+  const { isFixing, encodingStatus, showCompleteNotification, showNoFilesNotification, startEncodingFix } = useEncoding()
 
   const handleExpandClick = () => {
     setExpanded(!expanded)
@@ -531,27 +533,59 @@ const TagsListContent = (props) => {
     setSortOrder(order)
   }
 
+  const handleEncodingFixClick = async () => {
+    const success = await startEncodingFix()
+    if (!success) {
+      // Можно добавить уведомление об ошибке
+      console.error('Failed to start encoding fix')
+    }
+  }
+
   return (
     <>
       {/* Header with buttons */}
-      <Box sx={{ mb: 2, p: 2, display: 'flex', justifyContent: 'space-between' }}>
-        <Button
-          onClick={handleExpandClick}
-          endIcon={expanded ? <ExpandLess /> : <ExpandMore />}
-        >
-          Choose columns
-        </Button>
+      <Box sx={{ mb: 2, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+          <Button
+            onClick={handleExpandClick}
+            endIcon={expanded ? <ExpandLess /> : <ExpandMore />}
+          >
+            Choose columns
+          </Button>
 
-        <Button onClick={handleIndexClick} disabled={isIndexing}>
-          {isIndexing ? (
-            <>
-              <CircularProgress size={16} sx={{ mr: 1 }} />
-              Индексация...
-            </>
-          ) : (
-            'Проиндексировать'
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button onClick={handleIndexClick} disabled={isIndexing}>
+              {isIndexing ? (
+                <>
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                  Индексация...
+                </>
+              ) : (
+                'Проиндексировать'
+              )}
+            </Button>
+            
+            <Button variant="outlined" size="small" onClick={handleEncodingFixClick} disabled={isFixing}>
+              {isFixing ? (
+                <>
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                  Обработка...
+                </>
+              ) : (
+                'Фикс кодировки'
+              )}
+            </Button>
+          </Box>
+        </Box>
+        
+        {/* Statistics under buttons */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          {(encodingStatus.status !== 'none' && (encodingStatus.found > 0 || isFixing)) && (
+            <Typography variant="body2" color="textSecondary">
+              Найдено: {encodingStatus.found} | Обработано: {encodingStatus.processed}/{encodingStatus.found}
+            </Typography>
           )}
-        </Button>
+        </Box>
       </Box>
 
       {/* Column chooser - collapsible */}
@@ -599,6 +633,23 @@ const TagsListContent = (props) => {
           ✅ Индексация успешно завершена!
         </Alert>
       )}
+      
+      {/* Уведомление о завершении исправления кодировки */}
+      {showCompleteNotification && (
+        <Alert severity="success" sx={{ m: 2 }}>
+          ✅ Исправление кодировки завершено!
+        </Alert>
+      )}
+      
+      {/* Уведомление о том, что файлов для обработки не найдено */}
+      {(() => {
+        console.log('showNoFilesNotification:', showNoFilesNotification);
+        return showNoFilesNotification && (
+          <Alert severity="info" sx={{ m: 2 }}>
+            📦 Файлов для обработки не найдено
+          </Alert>
+        );
+      })()}
 
       {/* Search */}
       <Box sx={{ mb: 2, p: 2 }}>
